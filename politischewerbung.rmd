@@ -1,0 +1,706 @@
+---
+title: "Politische Werbung"
+output:
+  flexdashboard::flex_dashboard:
+    vertical_layout: scroll
+    theme:
+      version: 4
+      primary: '#1F968BFF'
+      navbar-bg: '#3CBC75FF'
+      base_font: Arial
+      heading_font: Arial
+      code_font: Arial
+      fig_mobile: c(3.75,5.5)
+#      favicon: favicon.ico
+runtime: shiny
+resource_files:
+- "output/api/age/api_age_2023-01-22.rdata"
+- "output/api/demo_table/api_demo_table_2023-01-22.rdata"
+- "output/api/gender/api_gender_2023-01-22.rdata"
+- "output/api/geo/api_geo_2023-01-22.rdata"
+- "output/api/geo_table/api_geo_table_2023-01-22.rdata"
+- "output/report/parties_weekly_2023-01-22.rdata"
+- "output/wordcloud/wordcloud_2023-01-22.rdata"
+---
+
+<style>
+body {
+text-align: justify}
+</style>
+
+<style>
+p.caption {
+  font-size: 0.6em;
+}
+</style>
+
+<link rel="shortcut icon" href="favicon.png">
+
+
+
+```{r global, include=FALSE}
+
+##1st step: run report script
+##1st step: run api script 
+##2nd step: run text_wordcloud script
+##restart R
+##3rd step: run this script 
+
+
+#load packages
+library(dplyr)
+library(stringr)
+library(lubridate)
+library(sf)
+library(showtext)
+library(geomtextpath)
+library(ggplot2)
+library(DT)
+library(reshape2)
+library(quanteda)
+library(quanteda.textplots)
+library(scales)
+
+
+#########################################################load report data
+
+rm(list=ls())
+
+#load report data until this week 
+df <- file.info(list.files("output/report", full.names = T))
+doc_name<-rownames(df)[which.max(df$mtime)]
+load(doc_name)
+
+####for selection tools
+
+##list of interest groups (needs to be adapted if a new IG appears in data)
+ig <- list(
+  "Gewerbeverbände (GV)" = "GV",
+  "IG Wirtschaft (IGW)" ="IGW",
+    "Gewerkschaftsbünde (GB)" ="GB"
+)
+
+# "Arbeitgeberverbände (AV)" = "AV",
+# "economiesuisse" = "ES",
+# "Bauernverbände (BV)" = "BV",
+
+
+#list of parties 
+parties <- list(
+  "SPS" = "SPS",
+  "GPS" = "GPS",
+  "GLP" = "GLP",
+  "Mitte" = "Mitte",
+  "FDP" = "FDP",
+  "SVP" = "SVP"
+)
+
+
+#language
+language <- list(
+  "Deutsch" = "Deutsch",
+  "Français" ="Français"
+)
+
+#for api data dates - create min and max that correspond to report week (exclude end date)
+api_date_min<-min(parties_weekly$Datum)-6
+api_date_max<-max(parties_weekly$Datum)+1
+
+
+
+
+#################################################################load data for figures
+
+#load geo data 
+df_geo <- file.info(list.files("output/api/geo", full.names = T))
+doc_name_geo<-rownames(df_geo)[which.max(df_geo$mtime)]
+load(doc_name_geo)
+
+#load map and merge with data
+load("input/api/map/api_map.rdata")
+
+api_geo<-merge(api_map,api_geo,by="Kanton")
+
+#load empty geo data
+load("input/api/map/api_geo_zero.rdata")
+
+#load geo_table data 
+df_geo_table <- file.info(list.files("output/api/geo_table", full.names = T))
+doc_name_geo_table<-rownames(df_geo_table)[which.max(df_geo_table$mtime)]
+load(doc_name_geo_table)
+
+#load gender data 
+df_gender <- file.info(list.files("output/api/gender", full.names = T))
+doc_name_gender<-rownames(df_gender)[which.max(df_gender$mtime)]
+load(doc_name_gender)
+
+#load age data 
+df_age <- file.info(list.files("output/api/age", full.names = T))
+doc_name_age<-rownames(df_age)[which.max(df_age$mtime)]
+load(doc_name_age)
+
+#load demo_table data 
+df_demo_table <- file.info(list.files("output/api/demo_table", full.names = T))
+doc_name_demo_table<-rownames(df_demo_table)[which.max(df_demo_table$mtime)]
+load(doc_name_demo_table)
+
+
+#########################load topic data
+df_wordcloud <- file.info(list.files("output/wordcloud", full.names = T))
+doc_name_wordcloud<-rownames(df_wordcloud)[!grepl("cp",rownames(df_wordcloud))][which.max(df_wordcloud$mtime)]
+load(doc_name_wordcloud)
+
+#API_w_dfm<-dfm_remove(API_w_dfm,max_nchar=12)  #option to remove words that are too long
+
+```
+
+Ausgaben {data-orientation=rows}
+==================
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+```{r}
+
+checkboxGroupInput("input_party",
+                     label = "Parteien",
+                     choices = parties,
+                     selected = parties)  #indicate the ones that should be selected in the beginning
+
+checkboxGroupInput("input_ig",
+                     label = "Interessengruppen",
+                     choices = ig,
+                     selected = ig)  #indicate the ones that should be selected in the beginning
+
+
+sliderInput("input_date",label="Datum",min=min(parties_weekly$Datum), max=max(parties_weekly$Datum),step=7, value=c(min(parties_weekly$Datum),max(parties_weekly$Datum)),
+            timeFormat="%d.%m",width="90%",dragRange = FALSE)   #dragRange would allow to change both dates at the same time
+
+
+
+```
+[Französische Version](https://politransparency.shinyapps.io/publicitepolitique/){target="_blank"} 
+
+Row 
+-----------------------------------------------------------------------
+
+###
+
+```{r}
+### Total Ausgaben Parteien
+
+P1data <- reactive({
+  parties_weekly %>%
+    filter(Akteur %in% input$input_party&Datum>=input$input_date[1]&Datum<=input$input_date[2]) %>%  
+    group_by(Akteur,Akteur_fr,Akteur_col) %>% 
+    summarise(total=sum(CHF)
+              )})
+
+renderPlot({
+  
+  ggplot(P1data(),aes(y=total,x=Akteur,fill=Akteur)) +
+  geom_bar(position=position_stack(),stat="identity",width=0.75)+labs(x="",y="CHF") +
+  scale_fill_manual(values=P1data()$Akteur_col) +
+  theme_classic() + theme(legend.position="none")+ theme(axis.text=element_text(size=13),axis.title.y=element_text(size=13),plot.title=element_text(size=15)) +geom_text(aes(label=round(total,-2)), vjust=1.5,colour="white") +theme(text=element_text(family="sans"))+scale_y_continuous(expand = c(0, 0)) + labs(title="Parteien: Total Ausgaben",caption="Daten: Meta-Werbebericht.") 
+
+  })
+
+
+```
+
+### 
+
+
+```{r}
+### Wöchentliche Ausgaben Parteien
+
+P2data <- reactive({
+  parties_weekly %>% 
+    filter(Akteur %in% input$input_party&Datum>=input$input_date[1]&Datum<=input$input_date[2]) %>%  
+    group_by(Akteur,Akteur_fr,Datum,Akteur_col) %>% 
+    summarise(total=sum(CHF)) %>% 
+    ungroup()
+  })
+
+
+renderPlot({
+  
+   ggplot(P2data(),aes(x=Datum,y=total,color=Akteur)) + 
+     geom_line(linewidth=2) + scale_color_manual(values=unique(P2data()$Akteur_col))+
+     theme_classic() + labs(x="",y="CHF") +theme(legend.position="none")+ theme(axis.text=element_text(size=13),axis.title.y=element_text(size=13),plot.title=element_text(size=15))+labs(color="")+
+     scale_x_date(labels=date_format("%d.%m"),breaks=seq(min(parties_weekly$Datum),max(parties_weekly$Datum),by="week"))+
+    geomtextpath::geom_textline(mapping=aes(label=Akteur),
+                              family="sans",
+                              linewidth=1, hjust=1, vjust=-.5, fontface="bold")+theme(text=element_text(family="sans"))+scale_y_continuous(limits=c(0,max(P2data()$total)+1000)) + labs(title="Parteien: Wöchentliche Ausgaben",caption="Daten: Meta-Werbebericht.") 
+      
+  
+ })
+
+```
+
+Row 
+-----------------------------------------------------------------------
+
+### 
+
+```{r}
+##Total Ausgaben IG
+
+P1data_ig <- reactive({
+  parties_weekly %>%
+    filter(Akteur %in% input$input_ig&Datum>=input$input_date[1]&Datum<=input$input_date[2]) %>%  
+    group_by(Akteur,Akteur_fr,Akteur_col) %>% 
+    summarise(total=sum(CHF)
+              )})
+
+renderPlot({
+  
+  ggplot(P1data_ig(),aes(y=total,x=Akteur,fill=Akteur)) +
+  geom_bar(position=position_stack(),stat="identity",width=0.75)+labs(x="",y="CHF") +
+  scale_fill_manual(values=P1data_ig()$Akteur_col) +
+  theme_classic() + theme(legend.position="none")+ theme(axis.text=element_text(size=13),axis.title.y=element_text(size=13),plot.title=element_text(size=15)) +geom_text(aes(label=round(total,-2)), vjust=1.5,colour="white") +theme(text=element_text(family="sans"))+scale_y_continuous(expand = c(0, 0))+labs(title="Interessengruppen: Total Ausgaben",caption="Daten: Meta-Werbebericht.")
+    
+  })
+
+```
+
+
+###
+
+```{r}
+#wöchentliche Ausgaben IG
+
+P2data_ig <- reactive({
+  parties_weekly %>% 
+    filter(Akteur %in% input$input_ig&Datum>=input$input_date[1]&Datum<=input$input_date[2]) %>%  
+    group_by(Akteur,Akteur_fr,Datum,Akteur_col) %>% 
+    summarise(total=sum(CHF)) %>% 
+    ungroup()
+  })
+
+
+renderPlot({
+
+   ggplot(P2data_ig(),aes(x=Datum,y=total,color=Akteur)) + 
+     geom_line(linewidth=2) + scale_color_manual(values=unique(P2data_ig()$Akteur_col))+
+     theme_classic() + labs(x="",y="CHF") +theme(legend.position="none")+ theme(axis.text=element_text(size=13),axis.title.y=element_text(size=13),plot.title=element_text(size=15))+labs(color="")+
+     scale_x_date(labels=date_format("%d.%m"),breaks=seq(min(parties_weekly$Datum),max(parties_weekly$Datum),by="week"))+
+    geomtextpath::geom_textline(mapping=aes(label=Akteur),
+                              family="sans",
+                              linewidth=1, hjust=1, vjust=-.5, fontface="bold")+theme(text=element_text(family="sans"))+scale_y_continuous(limits=c(0,max(P2data_ig()$total)+1000))+labs(title="Interessengruppen: Wöchentliche Ausgaben",caption="Daten: Meta-Werbebericht.")
+
+ })
+
+```
+
+
+
+Row
+-----------------------------------------------------------------------
+### 
+
+```{r}
+
+# Details (wöchentliche Angaben)
+renderDataTable({
+  
+  DT::datatable(parties_weekly %>%
+    filter(Akteur %in% input$input_party&Datum>=input$input_date[1]&Datum<=input$input_date[2]|
+             Akteur %in% input$input_ig&Datum>=input$input_date[1]&Datum<=input$input_date[2]) %>%
+    mutate(Datum=format(Datum,"%d.%m.%y")) %>% 
+    select(-Akteur_col,-Akteur_fr,-Inserent) %>% 
+    arrange(desc(CHF))
+    ,caption=htmltools::tags$caption(style = 'caption-side: top; text-align: left;', htmltools::em('Details (wöchentliche Angaben, sortiert nach Ausgaben)'))
+    ,rownames=FALSE,
+    ,options=list(pageLength=50,order=list(list(4, 'desc')))) 
+      
+  })
+
+
+```
+>Datenquelle: Meta-Werbebericht. 
+
+
+
+User {data-orientation=rows}
+==================
+
+Column {.sidebar }  
+-----------------------------------------------------------------------
+```{r}
+
+
+checkboxGroupInput("input_party_demo",
+                     label = "Parteien",
+                     choices = parties,
+                     selected = parties)  #indicate the ones that should be selected in the beginning
+
+checkboxGroupInput("input_ig_demo",
+                     label = "Interessengruppen",
+                     choices = ig,
+                     selected = ig)  #indicate the ones that should be selected in the beginning
+
+sliderInput("input_date_demo",label="Datum",min=api_date_min, max=api_date_max,step=7, value=c(api_date_min,api_date_max),
+            timeFormat="%d.%m",width="90%",dragRange = FALSE)   
+
+```
+[Französische Version](https://politransparency.shinyapps.io/publicitepolitique/#section-utilisateurs){target="_blank"} 
+
+
+Row 
+-----------------------------------------------------------------------
+
+###
+
+```{r }
+
+### Gender der erreichten User (Parteien)
+#dates are selected so to be corresponding to the dates in the report (replace <= with <)
+#filter the date 1st condition: started in the right period, second alternative condition: ended in the right period 
+
+gender_data <- reactive({
+  api_gender %>%
+    filter(Akteur %in% input$input_party_demo&Anfang>=input$input_date_demo[1]&Anfang<input$input_date_demo[2]|
+             Akteur %in% input$input_party_demo&Ende>=input$input_date_demo[1]&Ende<input$input_date_demo[2]) %>% 
+    group_by(Akteur,Acteur,variable) %>% 
+    summarise(value=weighted.mean(value,CHF)) 
+  })
+
+
+  renderPlot({
+    
+ggplot(gender_data(), aes(x=Akteur, y=value,fill=variable)) +theme_classic()+
+  geom_bar(position=position_stack(),stat="identity",width=0.75) + 
+  ggtitle("") + labs(x="",y="Anteil der erreichten Personen",fill="")+scale_fill_manual(values=c("#2D718EFF","#29AF7FFF"))+
+  theme(axis.ticks = element_blank(),legend.position="bottom",text=element_text(size=13,family="sans"))+
+  scale_y_continuous(expand = c(0, 0),breaks=seq(0,1,0.1),limits=c(0,1),labels = scales::percent)+labs(title="Parteien: Geschlecht",caption="Daten: Meta-Werbebibliothek, gewichtet nach Ausgaben.")
+        
+})
+
+ 
+
+```
+
+
+### 
+
+```{r}
+###Alter der erreichten User (Parteien)
+
+age_data <- reactive({
+  api_age %>%
+    filter(Akteur %in% input$input_party_demo&Anfang>=input$input_date_demo[1]&Anfang<input$input_date_demo[2]|
+             Akteur %in% input$input_party_demo&Ende>=input$input_date_demo[1]&Ende<input$input_date_demo[2]) %>% 
+    group_by(Akteur,Acteur,variable) %>% 
+    summarise(value=weighted.mean(value,CHF)) 
+  })
+#round(weighted.mean(female,CHF),2),Männer=round(weighted.mean(male,CHF),2)
+
+
+renderPlot({
+  
+ggplot(age_data(), aes(x=Akteur, y=value,fill=variable)) +theme_classic()+
+  geom_bar(position=position_stack(),stat="identity",width=0.75) + 
+  ggtitle("") + labs(x="",y="Anteil der erreichten Personen",fill="")+scale_fill_viridis_d(direction=1,begin=0,end=0.9)+
+  theme(axis.ticks = element_blank(),legend.position="bottom",text=element_text(family="sans",size=13))+
+  scale_y_continuous(expand = c(0, 0),breaks=seq(0,1,0.1),limits=c(0,1.02),labels = scales::percent)+labs(title="Parteien: Alter",caption="Daten: Meta-Werbebibliothek, gewichtet nach Ausgaben.")
+              
+})
+
+```
+
+Row 
+-----------------------------------------------------------------------
+
+### 
+
+```{r }
+# Gender der erreichten User (Interessengruppen)
+
+gender_data_ig <- reactive({
+  api_gender %>%
+    filter(Akteur %in% input$input_ig_demo&Anfang>=input$input_date_demo[1]&Anfang<input$input_date_demo[2]|
+             Akteur %in% input$input_ig_demo&Ende>=input$input_date_demo[1]&Ende<input$input_date_demo[2]) %>% 
+    group_by(Akteur,Acteur,variable) %>% 
+    summarise(value=weighted.mean(value,CHF)) 
+  })
+
+
+  renderPlot({
+
+ggplot(gender_data_ig(), aes(x=Akteur, y=value,fill=variable)) +theme_classic()+
+  geom_bar(position=position_stack(),stat="identity",width=0.75) + 
+  ggtitle("") + labs(x="",y="Anteil der erreichten Personen",fill="")+scale_fill_manual(values=c("#2D718EFF","#29AF7FFF"))+
+  theme(axis.ticks = element_blank(),legend.position="bottom",text=element_text(size=13,family="sans"))+
+  scale_y_continuous(expand = c(0, 0),breaks=seq(0,1,0.1),limits=c(0,1),labels = scales::percent)+labs(title="Interessengruppen: Geschlecht",caption="Daten: Meta-Werbebibliothek, gewichtet nach Ausgaben.")
+                
+})
+
+
+```
+
+
+### 
+
+```{r}
+
+# Alter der erreichten User (Interessengruppen)
+
+age_data_ig <- reactive({
+  api_age %>%
+    filter(Akteur %in% input$input_ig_demo&Anfang>=input$input_date_demo[1]&Anfang<input$input_date_demo[2]|
+             Akteur %in% input$input_ig_demo&Ende>=input$input_date_demo[1]&Ende<input$input_date_demo[2]) %>% 
+    group_by(Akteur,Acteur,variable) %>% 
+    summarise(value=weighted.mean(value,CHF)) 
+  })
+
+
+renderPlot({
+
+ggplot(age_data_ig(), aes(x=Akteur, y=value,fill=variable)) +theme_classic()+
+  geom_bar(position=position_stack(),stat="identity",width=0.75) + 
+  ggtitle("") + labs(x="",y="Anteil der erreichten Personen",fill="")+scale_fill_viridis_d(direction=1,begin=0,end=0.9)+
+  theme(axis.ticks = element_blank(),legend.position="bottom",text=element_text(family="sans",size=13))+
+  scale_y_continuous(expand = c(0, 0),breaks=seq(0,1,0.1),limits=c(0,1.02),labels = scales::percent)+labs(title="Interessengruppen: Alter",caption="Daten: Meta-Werbebibliothek, gewichtet nach Ausgaben.")
+  
+})
+
+
+```
+
+
+Row 
+-----------------------------------------------------------------------
+
+### 
+
+```{r}
+
+#Details (Einzelne Inserate)
+renderDataTable({
+  
+  APIdata_demoT<-api_demo_table %>%
+    filter(Akteur %in% input$input_party_demo&Anfang>=input$input_date_demo[1]&Anfang<input$input_date_demo[2]|
+             Akteur %in% input$input_party_demo&Ende>=input$input_date_demo[1]&Ende<input$input_date_demo[2]|
+             Akteur %in% input$input_ig_demo&Anfang>=input$input_date_demo[1]&Anfang<input$input_date_demo[2]|
+             Akteur %in% input$input_ig_demo&Ende>=input$input_date_demo[1]&Ende<input$input_date_demo[2]) %>%
+               mutate(Ende=Ende_table) %>% 
+    mutate(Anfang=format(Anfang,"%d.%m.%y"),Ende=format(Ende,"%d.%m.%y")) %>% 
+    select(-Acteur,-id,-Ende_table) 
+  
+  DT::datatable(APIdata_demoT,
+                caption=htmltools::tags$caption(style = 'caption-side: top; text-align: left;', htmltools::em('Details (einzelne Inserate, sortiert nach Ausgaben)')),rownames = FALSE,
+                options=list(pageLength=50,searchHighlight = TRUE,autoWidth = TRUE,order=list(list(4, 'desc'))),escape=F) %>% formatPercentage(c("Frauen","Männer","Alter 18-24","Alter 25-34", "Alter 35-44","Alter 45-54","Alter 55-64","Alter 65+"),0)
+  
+
+  })
+
+```
+> In der Werbebibliothek werden die Ausgaben (CHF) als Bandbreite angegeben. Der hier angezeigen Wert ist der Mittelwert. Daten:  Meta-Werbebibliothek.
+
+
+Karte {data-orientation=rows} 
+==================
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+```{r}
+
+
+radioButtons("input_party_geo",
+                     label = "Parteien",
+                     choices = parties,
+                     selected = "SPS")  #indicate the ones that should be selected in the beginning
+
+radioButtons("input_ig_geo",
+                     label = "Interessengruppen",
+                     choices = ig,
+                     selected = character(0))  #indicate the ones that should be selected in the beginning
+
+
+sliderInput("input_date_geo",label="Datum",min=api_date_min, max=api_date_max,step=7, value=c(api_date_min,api_date_max),
+            timeFormat="%d.%m",width="90%",dragRange = FALSE)   
+
+#make sure that only one variable (party or ig) is active
+observeEvent(input$input_ig_geo, {
+  if(input$input_ig_geo != "")
+       updateRadioButtons(session, "input_party_geo", 
+                          selected = character(0))})
+
+observeEvent(input$input_party_geo, {
+  if(input$input_party_geo != "")
+       updateRadioButtons(session, "input_ig_geo", 
+                          selected = character(0))})
+
+
+```
+[Französische Version](https://politransparency.shinyapps.io/publicitepolitique/#section-carte){target="_blank"} 
+
+Rows 
+-----------------------------------------------------------------------
+### Geographische Verteilung der erreichten User  {data-height=700}
+
+```{r }
+##Geographische Verteilung der erreichten User
+
+geo_data <- reactive({
+  api_geo %>%
+    filter(Akteur %in% input$input_party_geo&Anfang>=input$input_date_geo[1]&Anfang<input$input_date_geo[2]|
+             Akteur %in% input$input_party_geo&Ende>=input$input_date_geo[1]&Ende<input$input_date_geo[2]) %>% 
+    group_by(Akteur,Kanton,geometry) %>% 
+    summarise(audience_av=round(weighted.mean(value,CHF),2))
+  })
+
+geo_data_ig <- reactive({
+  api_geo %>%
+    filter(Akteur %in% input$input_ig_geo&Anfang>=input$input_date_geo[1]&Anfang<input$input_date_geo[2]|
+             Akteur %in% input$input_ig_geo&Ende>=input$input_date_geo[1]&Ende<input$input_date_geo[2]) %>% 
+    group_by(Akteur,Kanton,geometry) %>% 
+    summarise(audience_av=round(weighted.mean(value,CHF),2))
+  })
+
+
+#create data with 0s in case no data for that time: see above, import of api_geo_zero
+
+#plot
+  renderPlot({
+    
+    #plotting parties 
+    if (nrow(geo_data())!=0) {
+ggplot(geo_data())+geom_sf(data=geo_data(),aes(fill=audience_av))+
+  geom_sf_text(aes(label=scales::percent(audience_av,accuracy = 1L)),color="white")+
+  theme_classic()+theme(axis.line = element_blank(),axis.text=element_blank(),axis.ticks = element_blank(),axis.title=element_blank(), legend.position="none",plot.title=element_text(size=15,hjust=0.5))+ scale_fill_gradient(low = "#56B1F7",high = "#132B43")
+      #+labs(title="Geographische Verteilung der erreichten User",caption="Daten: Meta-Werbebibliothek, gewichtet nach Ausgaben.")
+
+  } 
+    # plot interest groups
+    else if (nrow(geo_data())==0&nrow(geo_data_ig())!=0) {
+ggplot(geo_data_ig())+geom_sf(data=geo_data_ig(),aes(fill=audience_av))+
+  geom_sf_text(aes(label=scales::percent(audience_av,accuracy = 1L)),color="white")+
+  theme_classic()+theme(axis.line = element_blank(),axis.text=element_blank(),axis.ticks = element_blank(),axis.title=element_blank(), legend.position="none",plot.title=element_text(size=15,hjust=0.5))+ scale_fill_gradient(low = "#56B1F7",high = "#132B43")
+    #+labs(title="Geographische Verteilung der erreichten User",caption="Daten: Meta-Werbebibliothek,gewichtet nach Ausgaben.")
+  }
+    #plot if there is no data for that actor
+    else {
+ ggplot(api_geo_zero)+geom_sf(data=api_geo_zero,aes(fill=audience_av))+
+  geom_sf_text(aes(label=scales::percent(audience_av,accuracy = 1L)),color="white")+
+  theme_classic()+theme(axis.line = element_blank(),axis.text=element_blank(),axis.ticks = element_blank(),axis.title=element_blank(), legend.position="none",plot.title=element_text(size=15,hjust=0.5))+ scale_fill_gradient(low = "#56B1F7")
+}
+
+   
+})
+
+```
+>Daten: Meta-Werbebibliothek, gewichtet nach Ausgaben.
+
+Rows 
+-----------------------------------------------------------------------
+
+###  
+
+```{r}
+# Details
+renderDataTable({
+  
+
+  APIdata_geoT<-api_geo_table %>%
+    filter(Akteur %in% input$input_party_geo&Anfang>=input$input_date_geo[1]&Anfang<input$input_date_geo[2]|
+             Akteur %in% input$input_party_geo&Ende>=input$input_date_geo[1]&Ende<input$input_date_geo[2]|
+             Akteur %in% input$input_ig_geo&Anfang>=input$input_date_geo[1]&Anfang<input$input_date_geo[2]|
+             Akteur %in% input$input_ig_geo&Ende>=input$input_date_geo[1]&Ende<input$input_date_geo[2]) %>%
+    mutate(Ende=Ende_table) %>% 
+    mutate(Anfang=format(Anfang,"%d.%m.%y"),Ende=format(Ende,"%d.%m.%y")) %>% 
+      select(-Acteur,-id,-Ende_table)
+  DT::datatable(APIdata_geoT,
+                caption=htmltools::tags$caption(style = 'caption-side: top; text-align: left;', htmltools::em('Details (einzelne Inserate, sortiert nach Ausgaben)')),rownames=FALSE,
+                options=list(pageLength=50,autoWidth = TRUE,order=list(list(4, 'desc'))),escape=F) %>% 
+    formatPercentage(c("Aargau","Appenzell Ausserrhoden","Appenzell Innerrhoden","Basel-Landschaft","Basel-Stadt" ,"Bern", "Fribourg", "Genève","Glarus","Graubünden", "Jura","Luzern","Neuchâtel","Nidwalden","Obwalden","Sankt Gallen","Schaffhausen","Schwyz",
+         "Solothurn","Thurgau","Ticino", "Uri","Valais","Vaud" ,"Zug","Zürich"),0)
+
+})
+
+
+
+```
+>In der Werbebibliothek werden die Ausgaben (CHF) als Bandbreite angegeben. Der hier angezeigen Wert ist der Mittelwert. Datenquelle: Meta-Werbebibliothek.
+
+
+Themen {data-orientation=rows} 
+==================
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+```{r}
+
+
+checkboxGroupInput("input_party_top",
+                     label = "Parteien",
+                     choices = parties,
+                     selected = parties)  #indicate the ones that should be selected in the beginning
+
+checkboxGroupInput("input_ig_top",
+                     label = "Interessengruppen",
+                     choices = ig,
+                     selected = character(0))  #indicate the ones that should be selected in the beginning
+
+sliderInput("input_date_top",label="Datum",min=api_date_min, max=api_date_max,step=7, value=c(api_date_min,api_date_max),
+            timeFormat="%d.%m",width="90%",dragRange = FALSE)   
+
+
+```
+[Französische Version](https://politransparency.shinyapps.io/publicitepolitique/#section-thèmes){target="_blank"} 
+
+Row
+-----------------------------------------------------------------------
+### {data-height=700}
+
+```{r }
+
+# Meistgenannte Wörter (Substantive)  
+
+top_data <- reactive({
+
+dfm_group(dfm_subset(API_w_dfm,Akteur %in% input$input_party_top&Anfang>=input$input_date_top[1]&Anfang<input$input_date_top[2]|
+            Akteur %in% input$input_party_top&Ende>=input$input_date_top[1]&Ende<input$input_date_top[2]|
+              Akteur %in% input$input_ig_top&Anfang>=input$input_date_top[1]&Anfang<input$input_date_top[2]|
+            Akteur %in% input$input_ig_top&Ende>=input$input_date_top[1]&Ende<input$input_date_top[2]),groups=Akteur)
+
+   })
+
+
+
+renderPlot({
+  
+     #set.seed(401)
+     textplot_wordcloud(top_data(),max_words = 60 ,comparison = T,color=top_data()@docvars$Akteur_col,labelsize=3,
+                        font="sans",min_size = 1,max_size=3,rotation=0) 
+     
+ })
+
+
+```
+>Die Wörter (Substantive), welche eine Partei deutlich häufiger nutzt als die anderen Parteien, werden angezeigt. Je grösser das Wort, desto grösser der Unterschied zu den anderen Parteien. Gewisse Wörter, welche inhaltlich wenig aussagekräftig sind wie z.B. "Wahlen", werden nicht angezeigt. Daten: Meta-Werbebibliothek 
+
+Methode {data-orientation=rows} 
+==================
+
+
+Row
+-----------------------------------------------------------------------
+
+### 
+ <strong>Methode</strong> <br>
+ 
+ <i>Daten</i> <br>
+Diese Webseite basiert auf Daten von Meta bezüglich politischen Inseraten auf Facebook und Instagram. Dies sind die beiden wichtigsten Plattformen  für politische Werbung im Internet. Der andere wichtige Anbieter ist Google, jedoch macht Google politische Inserate in der Schweiz (anders als in der [EU](https://adstransparency.google.com/political?political&region=EU){target="_blank"}) nicht transparent. Ein Anhaltspunkt für die Wichtigkeit von Google vs. Meta für politische Inserenten bietet Deutschland, wo von April 2019 bis Januar 2023 rund 90 Mio. EUR für politische Inserate auf Facebook und Instagram ausgegeben wurde ([Meta-Werbebericht](https://www.facebook.com/ads/library/report/?source=archive-landing-page&country=DE){target="_blank"}), für politische Google ads wurden im gleichen Zeitraum rund 6 Mio. EUR ausgeben ([google.com](https://adstransparency.google.com/political?political&region=DE){target="_blank"}). Twitter verbietet seit 2019 politische Werbung, scheint diese Politik unter Musk aber wieder zu revidieren ([zeit.de](https://www.zeit.de/digital/2023-01/twitter-werbung-politik-richtlinien?utm_referrer=https%3A%2F%2Fwww.google.com%2F){target="_blank"}). Auf TikTok ist politische Werbung verboten ([tiktok.com](https://newsroom.tiktok.com/de-de/aktualisierung-der-richtlinien-fuer-politische-accounts){target="_blank"}).  <br>
+
+Die Information zu den Ausgaben basieren auf wöchentlichen Daten des [Meta-Werbeberichts](https://www.facebook.com/ads/library/report/?source=archive-landing-page&country=CH){target="_blank"}, welcher für jeden Inserenten aggregierte Kosten präsentiert. Die Informationen zu den User (Geschlecht, Alter, Kanton) und den Themen basieren auf der [Meta-Werbebibliothek](https://www.facebook.com/ads/library/?active_status=all&ad_type=political_and_issue_ads&country=CH&media_type=all){target="_blank"}, welche für jedes Inserat Angaben zum Inhalt, Inserent, Ausgaben und erreichten User liefert. Um die Informationen bezüglich erreichten User und Themen pro Akteur zu aggregieren, werden Inserate mit grösseren Ausgaben höher gewichtet. <br>
+
+ <i>Akteure</i> <br>
+Lokale, kantonale und nationale Instanzen der sechs grössten Schweizer Parteien (SPS, GPS, GLP, Mitte, FDP, SVP) werden berücksichtigt. Kandidaten-Inserate werden nicht erfasst. Alle Inserate teurer als 100 CHF werden einbezogen. <br>
+Die Inserate der wichtigsten Schweizer Interessengruppen (Gewerbeverbände, Arbeitgeberverbände, Economiesuisse, Bauernverände, IG Wirtschaft, Gewerkschaftsbünde) werden berücksichtigt. Kantonale und nationale Verbände werden erfasst. Alle Inserate teurer als 100 CHF werden einbezogen. Weitere Interessengruppen mit bedeutenden Ausgaben werden bei Bedarf hinzugefügt. 
+
+
+
+
+
