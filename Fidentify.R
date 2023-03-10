@@ -8,7 +8,7 @@ Fidentify<- function(x){
       grepl("Mitte|Centre|MITTE|CENTRE", disclaimer) ~ "Mitte",
       grepl("EVP", disclaimer) ~ "EVP",
       grepl("SVP|UDC", disclaimer) ~ "SVP",
-      grepl("Gewerbeverband|des arts et métiers|KMU geprüft|FER Genève", disclaimer) ~ "GV",       ##beinhaltet auch kantonale 
+      grepl("Gewerbeverband|des arts et métiers|KMU geprüft|FER Genève", disclaimer) ~ "GV",       
       grepl("Arbeitgeberband|Union patronale", disclaimer) ~ "AV",
       grepl("Economiesuisse|economiesuisse", disclaimer) ~ "ES",
       grepl("Bauernverband|Union suisse des paysans", disclaimer) ~ "BV",
@@ -35,7 +35,7 @@ Fidentify_page<- function(x){
       grepl("Mitte|Centre|MITTE|CENTRE|Gesunde Jugend|Parteipäckli", page_name) ~ "Mitte",
       grepl("EVP", page_name) ~ "EVP",
       grepl("SVP|UDC", page_name) ~ "SVP",
-      grepl("Gewerbeverband|des arts et métiers|KMU geprüft|FER Genève|NON IN 179", page_name) ~ "GV",       ##beinhaltet auch kantonale 
+      grepl("Gewerbeverband|des arts et métiers|KMU geprüft|FER Genève|NON IN 179", page_name) ~ "GV",       
       grepl("Arbeitgeberband|Union patronale", page_name) ~ "AV",
       grepl("Economiesuisse|economiesuisse", page_name) ~ "ES",
       grepl("Bauernverband|Union suisse des paysans", page_name) ~ "BV",
