@@ -1,3 +1,15 @@
-# Repository for the dasbhoards "Politische Werbung"/"Publicite Politique" 
+# Politransparency ad dashboards 
 
-You find in this repository the scripts that have been used to prepare the data for the dashboard (report, api, text_wordcloud) and the scripts that based on flexdashboard run the shinyapps. 
+## Scripts 
+You find in this repository the scripts that are used to run the dashboards associated with [politransparency.ch](https://politransparency.ch), specifically [Politische Werbung](https://politransparency.shinyapps.io/politischewerbung/) and [Publicité Politique](https://politransparency.shinyapps.io/publicitepolitique/). 
+
+You also find the scripts that are used for data prepatation: 
+* report.R : prepare the data from the Meta Ad Library Report on spending 
+* api.R : prepare the data from the Meta Ad Library API on ad audiences 
+* text_wordcloud.R : prepare the data from the Meta Ad Library API on text content 
+
+## Data
+This repository includes Meta Ad Library reports. However, the data from the Meta Ad Library API is not included, because this data can not be shared freely (see [Meta Ad Library API](https://www.facebook.com/ads/library/api/?source=nav-panel). 
+
+
+
