@@ -64,7 +64,7 @@ date_min<-date-6
 #To access the API one needs to retrieve the access token from https://developers.facebook.com/tools/explorer/, user token
 url  <- "https://graph.facebook.com"
 path <- "v3.3/ads_archive"
-token.f<-"EAASWt05gcD4BACBZAvvlXR8nCSwZB7YcZCvvdXNkDjZAVvatrFU4oXjQuH5ZBWB3y78JFXZBj7mof57RvP0p0XUUOXCp5a18yFXHeD31lpVvpswHoqQD6cgsauwd5XR0NzpWpLMAV3bbdE6YRWUGKGmvh0jVgmVB5CosvNEUKUAom8ZCNO5lHOUw65PL9FYenet4N5eKcbFCDjUbZBnbZAvbGZCzGtmFHAyYhxBes6bZAEVLvETlwdsPHkWacvRsbp13f8ZD"
+token.f<-"EAASWt05gcD4BAH057Tx0tsmvX1zaPW8iJKZAENEeu6EzZC3NaG5b3NRoNdchgVYLOwnfjzZB5bH0dMCC9gNwwVG1AA9Jmx2qqji6zoYk1SZAgWfK0ZBKgdxPPIQamx4zTMmSe45wJwgZBp8CFdlq3yKsDJkROCR5gzlhzAeF4K1IZA2x0YdlE6gYYwXa2dtfQ3E5uiHCQXbZApKtDMEKwkQgFKBCWH4ZAdZBknzo9vrJJUNN7zjpfZAXMNjMKiAsUXo4ZAUZD"
 options(stringsAsFactors = FALSE)
 options(scipen=999)
 
@@ -359,6 +359,19 @@ api_gender<-CH %>%
 # long format
 api_gender<-melt(api_gender, id=c("id","Akteur","Acteur","Seite","Anfang","Ende","CHF"))
 
+parties <- list("SPS","GPS","GLP", "Mitte","FDP","SVP","EVP")
+
+api_gender<-api_gender %>% 
+  mutate(Akteur_type=case_when(
+    Akteur %in% parties ~ "Parteien",
+    TRUE ~ "Interessengruppen"
+  ))
+api_gender<-api_gender %>% 
+  mutate(Akteur_type_fr=recode(Akteur_type,"Parteien"="Partis","Interessengruppen"="Groupes d'intérêt"))
+api_gender<-api_gender %>% 
+  mutate(Akteur_type=factor(Akteur_type,levels=c("Parteien","Interessengruppen")))
+api_gender<-api_gender %>% 
+  mutate(Akteur_type_fr=factor(Akteur_type_fr,levels=c("Partis","Groupes d'intérêt")))
 
 # age ---------------------------------------------------------------------
 
@@ -368,6 +381,20 @@ api_age<-CH %>%
 # long format
 api_age<-melt(api_age, id=c("id","Akteur","Acteur","Seite","Anfang","Ende","CHF"))
 api_age$variable<-forcats::fct_rev(api_age$variable)
+
+api_age<-api_age %>% 
+  mutate(Akteur_type=case_when(
+    Akteur %in% parties ~ "Parteien",
+    TRUE ~ "Interessengruppen"
+  ))
+
+api_age<-api_age %>% 
+  mutate(Akteur_type_fr=recode(Akteur_type,"Parteien"="Partis","Interessengruppen"="Groupes d'intérêt"))
+api_age<-api_age %>% 
+  mutate(Akteur_type=factor(Akteur_type,levels=c("Parteien","Interessengruppen")))
+api_age<-api_age %>% 
+  mutate(Akteur_type_fr=factor(Akteur_type_fr,levels=c("Partis","Groupes d'intérêt")))
+
 
 # demography data table data ---------------------------------------------------------
 

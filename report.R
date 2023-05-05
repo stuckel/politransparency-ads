@@ -133,6 +133,25 @@ thisweek<-thisweek %>%
     Akteur=="IGW" ~ "#e4127f"
   ))
 
+
+##add Akteur type
+parties <- list("SPS","GPS","GLP", "Mitte","FDP","SVP","EVP")
+
+thisweek<-thisweek %>% 
+  mutate(Akteur_type=case_when(
+    Akteur %in% parties ~ "Parteien",
+    TRUE ~ "Interessengruppen"
+  ))
+
+thisweek<-thisweek %>% 
+  mutate(Akteur_type_fr=recode(Akteur_type,"Parteien"="Partis","Interessengruppen"="Groupes d'intérêt"))
+
+thisweek<-thisweek %>% 
+  mutate(Akteur_type=factor(Akteur_type,levels=c("Parteien","Interessengruppen")))
+
+thisweek<-thisweek %>% 
+  mutate(Akteur_type_fr=factor(Akteur_type_fr,levels=c("Partis","Groupes d'intérêt")))
+
 #combine with existing dataset (loaded previously) and save 
 if (nrow(file.info(list.files("input/report/zip", full.names = T)))==1) {
 

@@ -111,6 +111,7 @@ API$Akteur<-as.character(API$Akteur)
 # API$Text[API$id==SVP$id[19]]<-c("Jetzt Liste 1 wählen - für eine sichere Zukunft in Freiheit! 🗳️\nDie Wahlunterlagen sind eingetroffen. Für eine sichere Zukunft in Freiheit zählt nun jede Stimme. 🗳️💪🏼 Siehe Video – so geht’s ▶️!\n\n𝐙𝐮 𝐛𝐞𝐚𝐜𝐡𝐭𝐞𝐧:\n👉🏼 NUR die Liste 1 der SVP ins Kuvert legen.\n👉🏼 Die Stimmrechtskarte unterschreiben (ansonsten ist die Wahl ungültig).\n👉🏼 Wahlunterlagen der Familienmitglieder einzeln und nicht im selben Couvert einschicken.\n👉🏼 Bis allerspätestens 7. Februar das Couvert auf die Post bringen. Anschliessend in den Briefkasten der Gemeinde/Stadt werfen oder am Wahlsonntag an die Urne gehen.\n\nHerzlichen Dank für die Unterstützung! \n\n#svp #svpzuerich #liste1 #freiundsicher")
 # API$Text[API$id==SVP$id[21]]<-c("Am 12. Februar einen bürgerlichen Regierungsrat wählen! 🗳️\nDamit der Kanton Zürich weiterhin eine hohe Lebensqualität, gesunde Finanzen, starke KMU und eine innovative Wirtschaft hat, empfehlen die Präsidenten und Präsidentinnen der bürgerlichen Parteien zur Wahl in den Regierungsrat: \n✅ Natalie Rickli (SVP, bisher)\n✅ Ernst Stocker (SVP, bisher)\n✅ Silvia Steiner (Die Mitte, bisher)\n✅ Carmen Walker Späh (FDP, bisher)\n✅ Peter Grünenfelder (FDP, neu)\n\nVielen Dank für Ihre Stimme! 🗳️\n\n#buergerlichesticket #regierungsratswahlen2023 #svpzuerich #freiundsicher Natalie Rickli Carmen Walker Späh FDP Peter Grünenfelder, Regierungsratskandidat Zürich Die Mitte Kanton Zürich FDP Kanton Zürich")
 
+
 ##select new ones 
 if (nrow(file.info(list.files("input/report/zip", full.names = T)))==1) {
   
@@ -127,7 +128,14 @@ if (nrow(file.info(list.files("input/report/zip", full.names = T)))==1) {
 
 #identify language
 API$language<-textcat(API$Text)
-# table(API$language)
+table(API$language)
+
+#correct by hand
+library(openxlsx)
+#write.xlsx(API,"C:/Users/s_sim/Desktop/fdp.xlsx")
+API<-read.xlsx("C:/Users/s_sim/Desktop/fdp_clean.xlsx")
+API$Anfang<-as.Date(API$Anfang,origin="1899-12-30")
+API$Ende<-as.Date(API$Ende,origin="1899-12-30")
 # check_lang<-API %>% 
 #   filter(!language %in% c("german","french"))
 # API$language[API$language=="middle_frisian"|API$language=="swedish"]<-c("german")
@@ -141,6 +149,12 @@ API_fr<-API %>%
   filter(language=="french") 
 
 API_fr_cor<-corpus(API_fr,text_field="Text",docid_field = "id")
+
+API_it<-API %>% 
+  filter(language=="italian") 
+
+API_it_cor<-corpus(API_it,text_field="Text",docid_field = "id")
+
 
 #German noun identification
 spacy_initialize(model = "de_core_news_sm")
@@ -191,16 +205,40 @@ for (i in 1:length(API_fr_cor_nouns)){
 spacy_finalize()
 
 
+#Italian noun identification
+#spacy_download_langmodel("it_core_news_sm")
+spacy_initialize(model = "it_core_news_sm")
+
+corpus_NOUNreduction_it=function (text) {
+  txt = text
+  spacy_initialize(model="it_core_news_sm")
+  selection = spacy_parse(txt, tag = TRUE, pos = TRUE)
+  selection = paste(selection$token[(selection$pos=="PROPN" | selection$pos=="NOUN")], collapse=" ")
+  return(selection)
+}
+
+plan(multisession)
+API_list_nouns = API_it_cor %>%
+  furrr::future_map(function(x) corpus_NOUNreduction_it(x), .progress=TRUE ) 
+
+API_it_cor_nouns<-API_it_cor
+
+for (i in 1:length(API_it_cor_nouns)){
+  API_it_cor_nouns[[i]]=API_list_nouns[[i]]
+}
+
+spacy_finalize()
+
 #combine corpi
 if (nrow(file.info(list.files("input/report/zip", full.names = T)))==1) {
   
-  API_cor_nouns<-API_de_cor_nouns+API_fr_cor_nouns
+  API_cor_nouns<-API_de_cor_nouns+API_fr_cor_nouns+API_it_nouns
   
 } else {
   
   load(file=paste0("output/wordcloud/wordcloud_cp_",as.Date(date)-7,".rdata"))  #from last week
 
-    API_cor_nouns<-API_de_cor_nouns+API_fr_cor_nouns+API_cor_nouns
+    API_cor_nouns<-API_de_cor_nouns+API_fr_cor_nouns+API_it_cor_nouns+API_cor_nouns
   
 }
 
@@ -233,7 +271,8 @@ API_dfm<-dfm_remove(API_dfm,pattern=c(".*liste.*"),valuetype="regex")  ##remove 
 
 API_dfm<-dfm_remove(API_dfm,pattern=c("kantonsrat","regierungsrat","kanton","politik","politique","landrat","partei","bezirk",
                                       "stimme","wähle","listenplatz","kreis","kandidatinnen","kandidierenden","kandidaten","regierungsrätin","kandidatin",
-                                      "kandidierende","couvert","urne","video","2x","canton","stadtkreise"))
+                                      "kandidierende","couvert","urne","video","2x","canton","stadtkreise","ec23","kr23","election","electionscantonales",
+                                      "elezione","candidato","elezionicantonali2023","cantonali2023","ec2023"))
 
 
 #remove names of each party for each party
@@ -243,7 +282,7 @@ API_dfm_sp<-dfm_remove(API_dfm_sp,pattern=c("sp","ps","spkantonzuerich"))
 
 API_dfm_fdp<-dfm_subset(API_dfm,Akteur=="FDP")
 topfeatures(API_dfm_fdp,n=100)
-API_dfm_fdp<-dfm_remove(API_dfm_fdp,pattern=c("fdp","plr"))
+API_dfm_fdp<-dfm_remove(API_dfm_fdp,pattern=c("fdp","plr","plrge","fdp.die"))
 
 API_dfm_glp<-dfm_subset(API_dfm,Akteur=="GLP")
 topfeatures(API_dfm_glp,n=100)
@@ -251,7 +290,7 @@ API_dfm_glp<-dfm_remove(API_dfm_glp,pattern=c("glp","pvl","glpzh","grünliberale
 
 API_dfm_mitte<-dfm_subset(API_dfm,Akteur=="Mitte")
 topfeatures(API_dfm_mitte,n=100)
-API_dfm_mitte<-dfm_remove(API_dfm_mitte,pattern=c("mitte","centre"))
+API_dfm_mitte<-dfm_remove(API_dfm_mitte,pattern=c("mitte","centre","lecentre","lecentregeneve"))
 
 API_dfm_gps<-dfm_subset(API_dfm,Akteur=="GPS")
 topfeatures(API_dfm_gps,n=100)
@@ -292,5 +331,6 @@ docvars(API_w_dfm, "Anfang") <- ymd(API_dfm@docvars$Anfang)
 docvars(API_w_dfm, "Ende") <- ymd(API_dfm@docvars$Ende)
 
 save(API_w_dfm,file=paste0("output/wordcloud/wordcloud_",date,".rdata"))
+
 
 

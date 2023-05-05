@@ -1,10 +1,10 @@
 Fidentify<- function(x){
   x<-x %>% 
     mutate(party = case_when(
-      grepl("SP|PS|Parti socialiste|Sozialdemokratische|Jungsozialist|JUSO", disclaimer) ~ "SPS",
-      grepl("FDP|PLR", disclaimer) ~ "FDP",
+      grepl("SP|PS|Parti socialiste|Sozialdemokratische|Jungsozialist|JUSO|Partito Socialista Ticino", disclaimer) ~ "SPS",
+      grepl("FDP|PLR|Jungfreisinnige", disclaimer) ~ "FDP",
       grepl("Grüne|Vert|GRÜNE", disclaimer) ~ "GPS",
-      grepl("GLP|Grünliberale|GRÜNLIBERALE|vert'libéral|vert'libéraux|Vert'libéraux", disclaimer) ~ "GLP",
+      grepl("GLP|Grünliberale|GRÜNLIBERALE|vert'libéral|vert'libéraux|Vert'libéraux|verdi liberali", disclaimer) ~ "GLP",
       grepl("Mitte|Centre|MITTE|CENTRE", disclaimer) ~ "Mitte",
       grepl("EVP", disclaimer) ~ "EVP",
       grepl("SVP|UDC", disclaimer) ~ "SVP",
@@ -21,17 +21,18 @@ Fidentify<- function(x){
     mutate(party = case_when(
   grepl("Grünenfelder", disclaimer) ~ as.character(NA),   #for candidate ads that should be removed
   grepl("Ryser", Page.name) ~ as.character(NA),   #for candidate ads that should be removed
+  grepl("Bühler", Page.name) ~ as.character(NA),   #for candidate ads that should be removed
+  grepl("Cozzio", Page.name) ~ as.character(NA),   #for candidate ads that should be removed
   TRUE ~ party))
-  
   }
 
 Fidentify_page<- function(x){
   x %>% 
     mutate(party = case_when(
-      grepl("SP|PS|Parti socialiste|Sozialdemokatische|Jungsozialist|JUSO", page_name) ~ "SPS",
-      grepl("FDP|PLR", page_name) ~ "FDP",
+      grepl("SP|PS|Parti socialiste|Sozialdemokatische|Jungsozialist|JUSO|Partito Socialista", page_name) ~ "SPS",
+      grepl("FDP|PLR|Jungfreisinnige", page_name) ~ "FDP",
       grepl("Grüne|Vert|GRÜNE", page_name) ~ "GPS",
-      grepl("GLP|Grünliberale|GRÜNLIBERALE|vert'libéral|vert'libéraux|Vert'libéraux|glp", page_name) ~ "GLP",
+      grepl("GLP|Grünliberale|GRÜNLIBERALE|vert'libéral|vert'libéraux|Vert'libéraux|glp|Verdi Liberali", page_name) ~ "GLP",
       grepl("Mitte|Centre|MITTE|CENTRE|Gesunde Jugend|Parteipäckli", page_name) ~ "Mitte",
       grepl("EVP", page_name) ~ "EVP",
       grepl("SVP|UDC", page_name) ~ "SVP",
@@ -40,6 +41,6 @@ Fidentify_page<- function(x){
       grepl("Economiesuisse|economiesuisse", page_name) ~ "ES",
       grepl("Bauernverband|Union suisse des paysans", page_name) ~ "BV",
       grepl("Gewerkschaftsbund|Union syndicale", page_name) ~ "GB",
-      grepl("IG Wirtschaftsverbände|Perspektive|perspektiveschweiz.ch", page_name) ~ "IGW",
+      grepl("IG Wirtschaftsverbände|Perspektive|perspektiveschweiz.ch|perspectivesuisse.ch|prospettivasvizzera.ch", page_name) ~ "IGW",
     ))
 }
