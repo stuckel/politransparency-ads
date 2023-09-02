@@ -90,6 +90,11 @@ parties_fr <- list(
   "UDC" = "SVP"
 )
 
+#dates
+dates_sel<-list(
+  "1er Trimestre 2023"=as.Date("2023-04-01"),
+  "2e Trimestre 2023"=as.Date("2023-06-30"))
+
 #for api data dates - create min and max that correspond to report week (exclude end date)
 api_date_min<-min(parties_weekly$Datum)-6
 api_date_max<-max(parties_weekly$Datum)+1
@@ -268,7 +273,7 @@ renderDataTable({
           DT::datatable(parties_weekly %>%
     filter(Akteur %in% input$input_party&Datum>=input$input_date[1]&Datum<=input$input_date[2]|
              Akteur %in% input$input_ig&Datum>=input$input_date[1]&Datum<=input$input_date[2]) %>%
-    mutate(Datum=format(Datum,"%d.%m.%y")) %>%
+#    mutate(Datum=format(Datum,"%d.%m.%y")) %>%  #doesnt allow sorting in the table
     select(-Akteur_col,-Akteur,-Inserent,-Akteur_type,-Akteur_type_fr) %>% 
     rename("Acteur"="Akteur_fr","Page"="Seite","Date"="Datum","Nombre"="Anzahl") %>% 
       relocate(Acteur) %>% 
@@ -301,8 +306,11 @@ checkboxGroupInput("input_ig_target",
                      choices = ig_fr,
                      selected = ig_fr)  #indicate the ones that should be selected in the beginning
 
-sliderInput("input_date_target",label="Datum",min=min(target_det$Datum), max=max(target_det$Datum), value=c(min(target_det$Datum),max(target_det$Datum)),
-            timeFormat="%d.%m",width="90%",dragRange = FALSE)   
+checkboxGroupInput("input_date_target",
+                     label = "Datum",
+                     choices = dates_sel,
+                     selected = dates_sel)  #indicate the ones that should be selected in the beginning
+
 
 ```
 [Version allemande](https://politransparency.shinyapps.io/politischewerbung/){target="_blank"} 
@@ -337,8 +345,8 @@ Row
 
 target_gen_data <- reactive({
   target_gen %>%
-    filter(Akteur %in% input$input_party_target&Datum>=input$input_date_target[1]&Datum<=input$input_date_target[2]|
-             Akteur %in% input$input_ig_target&Datum>=input$input_date_target[1]&Datum<=input$input_date_target[2]) %>% 
+    filter(Akteur %in% input$input_party_target&Datum %in% input$input_date_target |
+             Akteur %in% input$input_ig_target&Datum %in% input$input_date_target) %>% 
     group_by(Akteur,Akteur_fr,Zielgruppe_fr,Akteur_type_fr) %>% 
     summarise(value=weighted.mean(Ausgaben_pct,CHF)) 
   
@@ -351,7 +359,7 @@ target_gen_data <- reactive({
   geom_bar(position=position_dodge(),stat="identity",width=0.75) + 
   ggtitle("") + labs(x="",y="Part des dépenses",fill="")+scale_fill_manual(values=c("#2D718EFF","#29AF7FFF"))+
   theme(axis.ticks = element_blank(),legend.position="bottom",text=element_text(size=13,family="sans"))+
-  scale_y_continuous(expand = c(0, 0),breaks=seq(0,1,0.1),limits=c(0,1.01),labels = scales::percent)+labs(title="",caption=paste0("Données: Bibliothèque publicitaire Meta, période: ",format(input$input_date_target[1]-89,"%d.%m")," - ",format(input$input_date_target[2],"%d.%m")))+  facet_grid(.~Akteur_type_fr,scales="free",space="free")
+  scale_y_continuous(expand = c(0, 0),breaks=seq(0,1,0.1),limits=c(0,1.01),labels = scales::percent)+labs(title="",caption="Données: Bibliothèque publicitaire Meta")+  facet_grid(.~Akteur_type_fr,scales="free",space="free")+theme(panel.grid.major.y=element_line(color="grey"))
             
 })
 
@@ -368,9 +376,9 @@ Row
 
 target_age_data <- reactive({
   target_age %>%
-    filter(Akteur %in% input$input_party_target&Datum>=input$input_date_target[1]&Datum<=input$input_date_target[2]|
-             Akteur %in% input$input_ig_target&Datum>=input$input_date_target[1]&Datum<=input$input_date_target[2]) %>% 
-    group_by(Akteur,Akteur_fr,Zielgruppe_fr,Akteur_type_fr) %>% 
+   filter(Akteur %in% input$input_party_target&Datum %in% input$input_date_target|
+             Akteur %in% input$input_ig_target&Datum %in% input$input_date_target) %>% 
+     group_by(Akteur,Akteur_fr,Zielgruppe_fr,Akteur_type_fr) %>% 
     summarise(value=weighted.mean(Ausgaben_pct,CHF)) 
   
   })
@@ -382,7 +390,7 @@ target_age_data <- reactive({
   geom_bar(position=position_dodge(),stat="identity",width=0.75) + 
   ggtitle("") + labs(x="",y="Part des dépenses",fill="")+scale_fill_viridis_d(direction=-1,begin=0,end=0.9)+
   theme(axis.ticks = element_blank(),legend.position="bottom",text=element_text(size=13,family="sans"))+
-  scale_y_continuous(expand = c(0, 0),breaks=seq(0,1,0.1),limits=c(0,1.01),labels = scales::percent)+labs(title="",caption=paste0("Données: Bibliothèque publicitaire Meta, période: ",format(input$input_date_target[1]-89,"%d.%m")," - ",format(input$input_date_target[2],"%d.%m")))+  facet_grid(.~Akteur_type_fr,scales="free",space="free")
+  scale_y_continuous(expand = c(0, 0),breaks=seq(0,1,0.1),limits=c(0,1.01),labels = scales::percent)+labs(title="",caption="Données: Bibliothèque publicitaire Meta")+  facet_grid(.~Akteur_type_fr,scales="free",space="free")+theme(panel.grid.major.y=element_line(color="grey"))
             
 })
 
@@ -400,19 +408,51 @@ Row {.mobile}
 target_int_data <- reactive({
   x<-target_det %>%
   filter(Kategorie_det=="INTERESTS") %>% 
-    filter(Akteur %in% input$input_party_target&Datum>=input$input_date_target[1]&Datum<=input$input_date_target[2]|
-             Akteur %in% input$input_ig_target&Datum>=input$input_date_target[1]&Datum<=input$input_date_target[2]) %>% 
+   filter(Akteur %in% input$input_party_target&Datum %in% input$input_date_target|
+             Akteur %in% input$input_ig_target&Datum %in% input$input_date_target) %>% 
     group_by(Akteur,Akteur_fr,Zielgruppe,Zielgruppe_de,Zielgruppe_fr,Ausgeschlossen_fr) %>% 
     summarise(value=weighted.mean(Ausgaben_pct,CHF)) 
   
-  x %>% 
+  top20<-x %>% 
     group_by(Akteur) %>% 
     arrange(desc(value)) %>% 
     slice(1:20) %>%
-    ungroup()
+    ungroup()%>% 
+    filter(value>0.01)
   
+  #add empty categories for presentation
+  top20 %>% 
+  group_by(Akteur,Akteur_fr) %>% 
+  mutate(id=row_number()) %>% 
+  tidyr::complete(id=c(1:20)) %>% 
+  ungroup %>% 
+  mutate(value=ifelse(is.na(value),0,value)) %>%
+  mutate(Ausgeschlossen_fr=ifelse(is.na(Ausgeschlossen_fr),"Inclus",as.character(Ausgeschlossen_fr))) %>% 
+  mutate(Ausgeschlossen_fr=factor(Ausgeschlossen_fr,levels=c("Inclus","Exclu"))) %>% 
+  mutate(Zielgruppe_fr=case_when(
+    is.na(Zielgruppe_fr) & id==2 ~ str_pad("",1),
+    is.na(Zielgruppe_fr) & id==3 ~ str_pad("",2),
+    is.na(Zielgruppe_fr) & id==4 ~ str_pad("",3),
+    is.na(Zielgruppe_fr) & id==5 ~ str_pad("",4),
+    is.na(Zielgruppe_fr) & id==6 ~ str_pad("",5),
+    is.na(Zielgruppe_fr) & id==7 ~ str_pad("",6),
+    is.na(Zielgruppe_fr) & id==8 ~ str_pad("",7),
+    is.na(Zielgruppe_fr) & id==9 ~ str_pad("",8),
+    is.na(Zielgruppe_fr) & id==10 ~ str_pad("",9),
+    is.na(Zielgruppe_fr) & id==11 ~ str_pad("",10),
+    is.na(Zielgruppe_fr) & id==12 ~ str_pad("",11),
+    is.na(Zielgruppe_fr) & id==13 ~ str_pad("",12),
+    is.na(Zielgruppe_fr) & id==14 ~ str_pad("",13),
+    is.na(Zielgruppe_fr) & id==15 ~ str_pad("",14),
+    is.na(Zielgruppe_fr) & id==16 ~ str_pad("",15),
+    is.na(Zielgruppe_fr) & id==17 ~ str_pad("",16),
+    is.na(Zielgruppe_fr) & id==18 ~ str_pad("",17),
+    is.na(Zielgruppe_fr) & id==19 ~ str_pad("",18),
+    is.na(Zielgruppe_fr) & id==20 ~ str_pad("",19),
+    TRUE  ~ Zielgruppe_fr))
   })
 
+  
 
   renderPlot({
     
@@ -421,8 +461,8 @@ target_int_data <- reactive({
   tidytext::scale_y_reordered() +
   ggtitle("") + labs(x="Part des dépenses",y="",fill="")+scale_fill_viridis_d(direction=-1,begin=0,end=0.9)+
   theme(axis.ticks = element_blank(),legend.position="bottom",text=element_text(size=13,family="sans"))+
-  scale_x_continuous(expand = c(0, 0),breaks=seq(0,1,0.2),limits=c(0,1.01),labels = scales::percent)+labs(title="",caption=paste0("Données: Bibliothèque publicitaire Meta, période: ",format(input$input_date_target[1]-89,"%d.%m")," - ",format(input$input_date_target[2],"%d.%m")))+
-  facet_wrap(.~Akteur_fr,scales="free_y",ncol=1)
+  scale_x_continuous(expand = c(0, 0),breaks=seq(0,1,0.1),limits=c(0,1.01),labels = scales::percent)+labs(title="",caption="Données: Bibliothèque publicitaire Meta")+
+  facet_wrap(.~Akteur_fr,scales="free",ncol=1)+theme(panel.grid.major.x=element_line(color="grey"))
 
     
     
@@ -442,17 +482,48 @@ Row {.no-mobile}
 target_int_data <- reactive({
   x<-target_det %>%
   filter(Kategorie_det=="INTERESTS") %>% 
-    filter(Akteur %in% input$input_party_target&Datum>=input$input_date_target[1]&Datum<=input$input_date_target[2]|
-             Akteur %in% input$input_ig_target&Datum>=input$input_date_target[1]&Datum<=input$input_date_target[2]) %>% 
+   filter(Akteur %in% input$input_party_target&Datum %in% input$input_date_target|
+             Akteur %in% input$input_ig_target&Datum %in% input$input_date_target) %>% 
     group_by(Akteur,Akteur_fr,Zielgruppe,Zielgruppe_de,Zielgruppe_fr,Ausgeschlossen_fr) %>% 
     summarise(value=weighted.mean(Ausgaben_pct,CHF)) 
   
-  x %>% 
+  top20<-x %>% 
     group_by(Akteur) %>% 
     arrange(desc(value)) %>% 
     slice(1:20) %>%
-    ungroup()
+    ungroup()%>% 
+    filter(value>0.01)
   
+    #add empty categories for presentation
+  top20 %>% 
+  group_by(Akteur,Akteur_fr) %>% 
+  mutate(id=row_number()) %>% 
+  tidyr::complete(id=c(1:20)) %>% 
+  ungroup %>% 
+  mutate(value=ifelse(is.na(value),0,value)) %>%
+  mutate(Ausgeschlossen_fr=ifelse(is.na(Ausgeschlossen_fr),"Inclus",as.character(Ausgeschlossen_fr))) %>% 
+  mutate(Ausgeschlossen_fr=factor(Ausgeschlossen_fr,levels=c("Inclus","Exclu"))) %>% 
+  mutate(Zielgruppe_fr=case_when(
+    is.na(Zielgruppe_fr) & id==2 ~ str_pad("",1),
+    is.na(Zielgruppe_fr) & id==3 ~ str_pad("",2),
+    is.na(Zielgruppe_fr) & id==4 ~ str_pad("",3),
+    is.na(Zielgruppe_fr) & id==5 ~ str_pad("",4),
+    is.na(Zielgruppe_fr) & id==6 ~ str_pad("",5),
+    is.na(Zielgruppe_fr) & id==7 ~ str_pad("",6),
+    is.na(Zielgruppe_fr) & id==8 ~ str_pad("",7),
+    is.na(Zielgruppe_fr) & id==9 ~ str_pad("",8),
+    is.na(Zielgruppe_fr) & id==10 ~ str_pad("",9),
+    is.na(Zielgruppe_fr) & id==11 ~ str_pad("",10),
+    is.na(Zielgruppe_fr) & id==12 ~ str_pad("",11),
+    is.na(Zielgruppe_fr) & id==13 ~ str_pad("",12),
+    is.na(Zielgruppe_fr) & id==14 ~ str_pad("",13),
+    is.na(Zielgruppe_fr) & id==15 ~ str_pad("",14),
+    is.na(Zielgruppe_fr) & id==16 ~ str_pad("",15),
+    is.na(Zielgruppe_fr) & id==17 ~ str_pad("",16),
+    is.na(Zielgruppe_fr) & id==18 ~ str_pad("",17),
+    is.na(Zielgruppe_fr) & id==19 ~ str_pad("",18),
+    is.na(Zielgruppe_fr) & id==20 ~ str_pad("",19),
+    TRUE  ~ Zielgruppe_fr))
   })
 
 
@@ -463,8 +534,7 @@ target_int_data <- reactive({
   tidytext::scale_y_reordered() +
   ggtitle("") + labs(x="Part des dépenses",y="",fill="")+scale_fill_viridis_d(direction=-1,begin=0,end=0.9)+
   theme(axis.ticks = element_blank(),legend.position="bottom",text=element_text(size=13,family="sans"))+
-  scale_x_continuous(expand = c(0, 0),breaks=seq(0,1,0.2),limits=c(0,1.01),labels = scales::percent)+labs(title="",caption=paste0("Données: Bibliothèque publicitaire Meta, période: ",format(input$input_date_target[1]-89,"%d.%m")," - ",format(input$input_date_target[2],"%d.%m")))+
-  facet_wrap(.~Akteur_fr,scales="free_y",ncol=2)
+  scale_x_continuous(expand = c(0, 0),breaks=seq(0,1,0.1),limits=c(0,1.01),labels = scales::percent)+labs(title="",caption="Données: Bibliothèque publicitaire Meta")+ facet_wrap(.~Akteur_fr,scales="free",ncol=2)+theme(panel.grid.major.x=element_line(color="grey"))
 
     
     
@@ -485,19 +555,42 @@ Row {.mobile}
 target_demo_data <- reactive({
   x<-target_det %>%
   filter(Kategorie_det=="DEMOGRAPHICS"|Kategorie_det=="BEHAVIORS") %>% 
-    filter(Akteur %in% input$input_party_target&Datum>=input$input_date_target[1]&Datum<=input$input_date_target[2]|
-             Akteur %in% input$input_ig_target&Datum>=input$input_date_target[1]&Datum<=input$input_date_target[2]) %>% 
+     filter(Akteur %in% input$input_party_target&Datum %in% input$input_date_target|
+             Akteur %in% input$input_ig_target&Datum %in% input$input_date_target) %>%
     group_by(Akteur,Akteur_fr,Zielgruppe,Zielgruppe_de,Zielgruppe_fr,Ausgeschlossen_fr) %>% 
     summarise(value=weighted.mean(Ausgaben_pct,CHF)) 
   
-  x %>% 
+  top10<-x %>% 
     group_by(Akteur) %>% 
     arrange(desc(value)) %>% 
     slice(1:10) %>%
-    ungroup()
+    ungroup()%>% 
+    filter(value>0.01)
   
+
+  #add empty categories for presentation
+  top10 %>% 
+  group_by(Akteur,Akteur_fr) %>% 
+  mutate(id=row_number()) %>% 
+  tidyr::complete(id=c(1:10)) %>% 
+  ungroup %>% 
+  mutate(value=ifelse(is.na(value),0,value)) %>%
+  mutate(Ausgeschlossen_fr=ifelse(is.na(Ausgeschlossen_fr),"Inclus",as.character(Ausgeschlossen_fr))) %>% 
+  mutate(Ausgeschlossen_fr=factor(Ausgeschlossen_fr,levels=c("Inclus","Exclu"))) %>% 
+  mutate(Zielgruppe_fr=case_when(
+    is.na(Zielgruppe_fr) & id==2 ~ str_pad("",1),
+    is.na(Zielgruppe_fr) & id==3 ~ str_pad("",2),
+    is.na(Zielgruppe_fr) & id==4 ~ str_pad("",3),
+    is.na(Zielgruppe_fr) & id==5 ~ str_pad("",4),
+    is.na(Zielgruppe_fr) & id==6 ~ str_pad("",5),
+    is.na(Zielgruppe_fr) & id==7 ~ str_pad("",6),
+    is.na(Zielgruppe_fr) & id==8 ~ str_pad("",7),
+    is.na(Zielgruppe_fr) & id==9 ~ str_pad("",8),
+    is.na(Zielgruppe_fr) & id==10 ~ str_pad("",9),
+    TRUE  ~ Zielgruppe_fr))
   })
 
+  
 
   renderPlot({
     
@@ -506,8 +599,7 @@ target_demo_data <- reactive({
   tidytext::scale_y_reordered() +
   ggtitle("") + labs(x="Part des dépenses",y="",fill="")+scale_fill_viridis_d(direction=-1,begin=0,end=0.9)+
   theme(axis.ticks = element_blank(),legend.position="bottom",text=element_text(size=13,family="sans"))+
-  scale_x_continuous(expand = c(0, 0),breaks=seq(0,1,0.2),limits=c(0,1.01),labels = scales::percent)+labs(title="",caption=paste0("Données: Bibliothèque publicitaire Meta, période: ",format(input$input_date_target[1]-89,"%d.%m")," - ",format(input$input_date_target[2],"%d.%m")))+
-  facet_wrap(.~Akteur_fr,scales="free_y",ncol=1)
+  scale_x_continuous(expand = c(0, 0),breaks=seq(0,1,0.1),limits=c(0,1.01),labels = scales::percent)+labs(title="",caption="Données: Bibliothèque publicitaire Meta")+facet_wrap(.~Akteur_fr,scales="free",ncol=1)+theme(panel.grid.major.x=element_line(color="grey"))
 
   
             
@@ -527,18 +619,41 @@ Row {.no-mobile}
 target_demo_data <- reactive({
   x<-target_det %>%
   filter(Kategorie_det=="DEMOGRAPHICS"|Kategorie_det=="BEHAVIORS") %>% 
-    filter(Akteur %in% input$input_party_target&Datum>=input$input_date_target[1]&Datum<=input$input_date_target[2]|
-             Akteur %in% input$input_ig_target&Datum>=input$input_date_target[1]&Datum<=input$input_date_target[2]) %>% 
+     filter(Akteur %in% input$input_party_target&Datum %in% input$input_date_target|
+             Akteur %in% input$input_ig_target&Datum %in% input$input_date_target) %>% 
     group_by(Akteur,Akteur_fr,Zielgruppe,Zielgruppe_de,Zielgruppe_fr,Ausgeschlossen_fr) %>% 
     summarise(value=weighted.mean(Ausgaben_pct,CHF)) 
   
-  x %>% 
+  top10<-x %>% 
     group_by(Akteur) %>% 
     arrange(desc(value)) %>% 
     slice(1:10) %>%
-    ungroup()
+    ungroup()%>% 
+    filter(value>0.01)
   
+
+  #add empty categories for presentation
+  top10 %>% 
+  group_by(Akteur,Akteur_fr) %>% 
+  mutate(id=row_number()) %>% 
+  tidyr::complete(id=c(1:10)) %>% 
+  ungroup %>% 
+  mutate(value=ifelse(is.na(value),0,value)) %>%
+  mutate(Ausgeschlossen_fr=ifelse(is.na(Ausgeschlossen_fr),"Inclus",as.character(Ausgeschlossen_fr))) %>% 
+  mutate(Ausgeschlossen_fr=factor(Ausgeschlossen_fr,levels=c("Inclus","Exclu"))) %>% 
+  mutate(Zielgruppe_fr=case_when(
+    is.na(Zielgruppe_fr) & id==2 ~ str_pad("",1),
+    is.na(Zielgruppe_fr) & id==3 ~ str_pad("",2),
+    is.na(Zielgruppe_fr) & id==4 ~ str_pad("",3),
+    is.na(Zielgruppe_fr) & id==5 ~ str_pad("",4),
+    is.na(Zielgruppe_fr) & id==6 ~ str_pad("",5),
+    is.na(Zielgruppe_fr) & id==7 ~ str_pad("",6),
+    is.na(Zielgruppe_fr) & id==8 ~ str_pad("",7),
+    is.na(Zielgruppe_fr) & id==9 ~ str_pad("",8),
+    is.na(Zielgruppe_fr) & id==10 ~ str_pad("",9),
+    TRUE  ~ Zielgruppe_fr))
   })
+
 
 
   renderPlot({
@@ -548,8 +663,7 @@ target_demo_data <- reactive({
   tidytext::scale_y_reordered() +
   ggtitle("") + labs(x="Part des dépenses",y="",fill="")+scale_fill_viridis_d(direction=-1,begin=0,end=0.9)+
   theme(axis.ticks = element_blank(),legend.position="bottom",text=element_text(size=13,family="sans"))+
-  scale_x_continuous(expand = c(0, 0),breaks=seq(0,1,0.2),limits=c(0,1.01),labels = scales::percent)+labs(title="",caption=paste0("Données: Bibliothèque publicitaire Meta, période: ",format(input$input_date_target[1]-89,"%d.%m")," - ",format(input$input_date_target[2],"%d.%m")))+
-  facet_wrap(.~Akteur_fr,scales="free_y",ncol=2)
+  scale_x_continuous(expand = c(0, 0),breaks=seq(0,1,0.1),limits=c(0,1.01),labels = scales::percent)+labs(title="",caption="Données: Bibliothèque publicitaire Meta")+facet_wrap(.~Akteur_fr,scales="free",ncol=2)+theme(panel.grid.major.x=element_line(color="grey"))
 
   
             
@@ -569,9 +683,9 @@ Row
 
 target_aud_data <- reactive({
   target_aud %>%
-    filter(Akteur %in% input$input_party_target&Datum>=input$input_date_target[1]&Datum<=input$input_date_target[2]|
-             Akteur %in% input$input_ig_target&Datum>=input$input_date_target[1]&Datum<=input$input_date_target[2]) %>% 
-    group_by(Akteur,Akteur_fr,Zielgruppe_fr,Akteur_type_fr) %>% 
+    filter(Akteur %in% input$input_party_target&Datum %in% input$input_date_target|
+             Akteur %in% input$input_ig_target&Datum %in% input$input_date_target) %>% 
+      group_by(Akteur,Akteur_fr,Zielgruppe_fr,Akteur_type_fr) %>% 
     summarise(value=weighted.mean(Ausgaben_pct,CHF)) 
   
   })
@@ -583,7 +697,7 @@ target_aud_data <- reactive({
   geom_bar(position=position_dodge(),stat="identity",width=0.75) + 
   ggtitle("") + labs(x="",y="Part des dépenses",fill="")+scale_fill_manual(values=c("#94d7bf","#29af7f","#96b8c6","#2d718e"))+
   theme(axis.ticks = element_blank(),legend.position="bottom",text=element_text(size=13,family="sans"))+
-  scale_y_continuous(expand = c(0, 0),breaks=seq(0,1,0.1),limits=c(0,1.01),labels = scales::percent)+labs(title="",caption=paste0("Données: Bibliothèque publicitaire Meta, période: ",format(input$input_date_target[1]-89,"%d.%m")," - ",format(input$input_date_target[2],"%d.%m")))+ facet_grid(.~Akteur_type_fr,scales="free",space="free")
+  scale_y_continuous(expand = c(0, 0),breaks=seq(0,1,0.1),limits=c(0,1.01),labels = scales::percent)+labs(title="",caption="Données: Bibliothèque publicitaire Meta")+ facet_grid(.~Akteur_type_fr,scales="free",space="free")+theme(panel.grid.major.y=element_line(color="grey"))
             
 })
 
@@ -934,4 +1048,5 @@ Les instances locales, cantonales et nationales des six plus grands partis suiss
 Les annonces des principaux groupes d'intérêt suisses (Unions des arts et métiers, Unions patronales, Economiesuisse, Unions des paysans, IG Wirtschaft, Unions syndicales) sont prises en compte. Les associations cantonales et nationales sont prises en compte. Toutes les annonces d'un coût supérieur à 100 CHF sont incluses. D'autres groupes d'intérêt avec des dépenses importantes sont ajoutés si nécessaire.
 
  <i>Open Data</i> <br>
-Le code de ce site web ainsi que les données du rapport publicitaire Meta sont disponibles sur [GitHub](https://github.com/stuckel/politransparency-ads){target="_blank"}.
+Le code de ce site web ainsi que les données du rapport publicitaire Meta sont disponibles sur [GitHub](https://github.com/stuckel/politransparency-ads){target="_blank"}.<br>
+Message d'erreur : Dans une version précédente du site, les données relatives au ciblage au premier trimestre étaient erronées. La part des dépenses consacrées par les partis aux groupes cibles était surestimée, car certains sites de partis n'étaient pas pris en compte. 

@@ -64,7 +64,7 @@ date_min<-date-6
 #To access the API one needs to retrieve the access token from https://developers.facebook.com/tools/explorer/, user token
 url  <- "https://graph.facebook.com"
 path <- "v3.3/ads_archive"
-token.f<-"EAASWt05gcD4BAH057Tx0tsmvX1zaPW8iJKZAENEeu6EzZC3NaG5b3NRoNdchgVYLOwnfjzZB5bH0dMCC9gNwwVG1AA9Jmx2qqji6zoYk1SZAgWfK0ZBKgdxPPIQamx4zTMmSe45wJwgZBp8CFdlq3yKsDJkROCR5gzlhzAeF4K1IZA2x0YdlE6gYYwXa2dtfQ3E5uiHCQXbZApKtDMEKwkQgFKBCWH4ZAdZBknzo9vrJJUNN7zjpfZAXMNjMKiAsUXo4ZAUZD"
+token.f<-"EAASWt05gcD4BO2qvQ2HBJhtlOFSdM2WW17a8Mpq3lhMc51luVPjBjvCjd6anbXJfjpbmEeOfPFWc6uVp6R7sNDBAV4FLZBouGb9Y43jSaa22CGGbfXv1RHZCT9e4Pf6wbYbMGfSGa60uzEGnaUKZCyHX7h5idj2XPCfpPDCetU6so88DO24ZAyXcYZCAolrgpZAR7gOd8ZC3wCoMC3f2lBuYvIcskvyYmvRnoB74yyqYVM02wk6F9Pius4bZCQGV5NPY3HdHcwZDZD"
 options(stringsAsFactors = FALSE)
 options(scipen=999)
 

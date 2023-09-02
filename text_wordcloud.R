@@ -1,6 +1,9 @@
 
 #text wordcloud
 
+#check on identified languages (line 136)
+#if italian is present adapt line 247
+
 library(dplyr)
 library(stringr)
 library(textcat)
@@ -121,24 +124,29 @@ if (nrow(file.info(list.files("input/report/zip", full.names = T)))==1) {
   
   load(file=paste0("output/wordcloud/wordcloud_cp_",as.Date(date)-7,".rdata"))
   API<-API %>% 
-    filter(!id %in% names(API_cor_nouns))  #ids are set as docids (see below) and therefore can be accessed by names()
+    filter(!id %in% names(API_cor_nouns)) %>% #ids are set as docids (see below) and therefore can be accessed by names()
+    filter(!is.na(Text))
   rm(API_cor_nouns)
+  
+  
   
 }
 
 #identify language
 API$language<-textcat(API$Text)
 table(API$language)
-
 #correct by hand
-library(openxlsx)
+#API$language[API$language=="danish"]<-c("german")
+# API$language[API$language=="romanian"]<-c("french")
+#library(openxlsx)
 #write.xlsx(API,"C:/Users/s_sim/Desktop/fdp.xlsx")
-API<-read.xlsx("C:/Users/s_sim/Desktop/fdp_clean.xlsx")
-API$Anfang<-as.Date(API$Anfang,origin="1899-12-30")
-API$Ende<-as.Date(API$Ende,origin="1899-12-30")
+#API<-read.xlsx("C:/Users/s_sim/Desktop/fdp_clean.xlsx")
+#API$Anfang<-as.Date(API$Anfang,origin="1899-12-30")
+#API$Ende<-as.Date(API$Ende,origin="1899-12-30")
 # check_lang<-API %>% 
 #   filter(!language %in% c("german","french"))
-# API$language[API$language=="middle_frisian"|API$language=="swedish"]<-c("german")
+# API$language[API$language=="catalan"|API$language=="slovenian-iso8859_2"]<-c("french")
+# API$language[API$language=="indonesian"]<-c("german")
 
 API_de<-API %>% 
   filter(language=="german") 
@@ -238,7 +246,7 @@ if (nrow(file.info(list.files("input/report/zip", full.names = T)))==1) {
   
   load(file=paste0("output/wordcloud/wordcloud_cp_",as.Date(date)-7,".rdata"))  #from last week
 
-    API_cor_nouns<-API_de_cor_nouns+API_fr_cor_nouns+API_it_cor_nouns+API_cor_nouns
+    API_cor_nouns<-API_de_cor_nouns+API_fr_cor_nouns+API_cor_nouns +API_it_cor_nouns
   
 }
 
