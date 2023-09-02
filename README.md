@@ -7,6 +7,7 @@ You also find the scripts that are used for data preparation:
 * report.R : prepare the data from the Meta Ad Library Report on spending 
 * api.R : prepare the data from the Meta Ad Library API on ad audiences 
 * text_wordcloud.R : prepare the data from the Meta Ad Library API on text content 
+* targeting.R : prepare the data from the Meta Ad Library on targeting
 
 ## Data
 This repository includes Meta Ad Library reports. The original files are in input/report, the prepared data are in output/report. The data from the Meta Ad Library API is not included, because this data can not be shared freely (see [Meta Ad Library API](https://www.facebook.com/ads/library/api/?source=nav-panel)). 
